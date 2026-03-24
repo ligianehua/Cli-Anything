@@ -1,0 +1,295 @@
+From ce2e59017fc8509de99061f2be8142b2c49657da Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 24 Mar 2026 08:59:50 +0000
+Subject: [PATCH 1/2] Fix PostgreSQL syntax error in add_cost_to_sale_items
+ migration
+
+Change MySQL-style UPDATE...JOIN to PostgreSQL-compatible UPDATE...FROM...WHERE syntax.
+
+https://claude.ai/code/session_01L1rBavsdU6X49xm1HLcQi9
+---
+ .../2025_12_14_000002_add_cost_to_sale_items_table.php     | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/database/migrations/2025_12_14_000002_add_cost_to_sale_items_table.php b/database/migrations/2025_12_14_000002_add_cost_to_sale_items_table.php
+index 88a36df..08a1fd7 100644
+--- a/database/migrations/2025_12_14_000002_add_cost_to_sale_items_table.php
++++ b/database/migrations/2025_12_14_000002_add_cost_to_sale_items_table.php
+@@ -19,9 +19,10 @@ public function up()
+         // OPTIONAL: Retroactively fill existing sales with the CURRENT product cost
+         // to prevent reports from showing 100% profit (0 cost) for old data.
+         // 2. Run the update with a NULL check (COALESCE defaults to 0 if null)
+-    $updateSql = "UPDATE sale_items 
+-                  JOIN products ON sale_items.product_id = products.id 
+-                  SET sale_items.cost = COALESCE(products.cost, 0)";
++    $updateSql = "UPDATE sale_items
++                  SET cost = COALESCE(products.cost, 0)
++                  FROM products
++                  WHERE sale_items.product_id = products.id";
+         DB::statement($updateSql);
+     }
+ 
+-- 
+2.43.0
+
+
+From 64ce5bafa39c625a670f578ddf23f1d22c8718a5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 24 Mar 2026 09:19:01 +0000
+Subject: [PATCH 2/2] Fix duplicate table errors in migrations
+
+Add Schema::hasTable checks to all create_* migrations from 12/24-12/26
+to prevent "relation already exists" errors when tables exist but
+migration records are out of sync. Delete duplicate stub migration
+for product_pricing_tiers table.
+
+https://claude.ai/code/session_01L1rBavsdU6X49xm1HLcQi9
+---
+ ...24_070331_create_uom_conversions_table.php | 10 ++++---
+ ...25_12_24_070404_create_suppliers_table.php | 10 ++++---
+ ...24_070440_create_purchase_orders_table.php | 10 ++++---
+ ...1621_create_role_change_requests_table.php | 22 +++++++-------
+ ...31_create_cash_register_sessions_table.php | 30 ++++++++++---------
+ ...create_cash_register_adjustments_table.php | 24 ++++++++-------
+ ...618_create_product_pricing_tiers_table.php | 27 -----------------
+ ...044_create_product_pricing_tiers_table.php | 18 ++++++-----
+ 8 files changed, 69 insertions(+), 82 deletions(-)
+ delete mode 100644 database/migrations/2025_12_26_113618_create_product_pricing_tiers_table.php
+
+diff --git a/database/migrations/2025_12_24_070331_create_uom_conversions_table.php b/database/migrations/2025_12_24_070331_create_uom_conversions_table.php
+index 64c8042..1211b3c 100644
+--- a/database/migrations/2025_12_24_070331_create_uom_conversions_table.php
++++ b/database/migrations/2025_12_24_070331_create_uom_conversions_table.php
+@@ -11,10 +11,12 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('uom_conversions', function (Blueprint $table) {
+-            $table->id();
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('uom_conversions')) {
++            Schema::create('uom_conversions', function (Blueprint $table) {
++                $table->id();
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2025_12_24_070404_create_suppliers_table.php b/database/migrations/2025_12_24_070404_create_suppliers_table.php
+index 7ae532f..14ff418 100644
+--- a/database/migrations/2025_12_24_070404_create_suppliers_table.php
++++ b/database/migrations/2025_12_24_070404_create_suppliers_table.php
+@@ -11,10 +11,12 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('suppliers', function (Blueprint $table) {
+-            $table->id();
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('suppliers')) {
++            Schema::create('suppliers', function (Blueprint $table) {
++                $table->id();
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2025_12_24_070440_create_purchase_orders_table.php b/database/migrations/2025_12_24_070440_create_purchase_orders_table.php
+index 802df0f..2a6781d 100644
+--- a/database/migrations/2025_12_24_070440_create_purchase_orders_table.php
++++ b/database/migrations/2025_12_24_070440_create_purchase_orders_table.php
+@@ -11,10 +11,12 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('purchase_orders', function (Blueprint $table) {
+-            $table->id();
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('purchase_orders')) {
++            Schema::create('purchase_orders', function (Blueprint $table) {
++                $table->id();
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2025_12_25_031621_create_role_change_requests_table.php b/database/migrations/2025_12_25_031621_create_role_change_requests_table.php
+index 248ac61..d012547 100644
+--- a/database/migrations/2025_12_25_031621_create_role_change_requests_table.php
++++ b/database/migrations/2025_12_25_031621_create_role_change_requests_table.php
+@@ -11,16 +11,18 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('role_change_requests', function (Blueprint $table) {
+-            $table->id();
+-            $table->foreignId('requester_id')->constrained('users')->onDelete('cascade');
+-            $table->foreignId('approver_id')->constrained('users')->onDelete('cascade');
+-            $table->foreignId('target_user_id')->constrained('users')->onDelete('cascade');
+-            $table->string('new_role');
+-            $table->enum('status', ['pending', 'approved', 'rejected', 'consumed'])->default('pending');
+-            $table->timestamp('expires_at');
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('role_change_requests')) {
++            Schema::create('role_change_requests', function (Blueprint $table) {
++                $table->id();
++                $table->foreignId('requester_id')->constrained('users')->onDelete('cascade');
++                $table->foreignId('approver_id')->constrained('users')->onDelete('cascade');
++                $table->foreignId('target_user_id')->constrained('users')->onDelete('cascade');
++                $table->string('new_role');
++                $table->enum('status', ['pending', 'approved', 'rejected', 'consumed'])->default('pending');
++                $table->timestamp('expires_at');
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2025_12_26_030231_create_cash_register_sessions_table.php b/database/migrations/2025_12_26_030231_create_cash_register_sessions_table.php
+index 6013e26..0485e08 100644
+--- a/database/migrations/2025_12_26_030231_create_cash_register_sessions_table.php
++++ b/database/migrations/2025_12_26_030231_create_cash_register_sessions_table.php
+@@ -11,20 +11,22 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('cash_register_sessions', function (Blueprint $table) {
+-            $table->id();
+-            $table->foreignId('store_id')->constrained()->onDelete('cascade');
+-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // The "Custodian" who opened it
+-            $table->decimal('opening_amount', 10, 2);
+-            $table->decimal('closing_amount', 10, 2)->nullable();
+-            $table->decimal('expected_amount', 10, 2)->nullable();
+-            $table->decimal('variance', 10, 2)->nullable();
+-            $table->enum('status', ['open', 'closed'])->default('open');
+-            $table->timestamp('opened_at');
+-            $table->timestamp('closed_at')->nullable();
+-            $table->text('notes')->nullable();
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('cash_register_sessions')) {
++            Schema::create('cash_register_sessions', function (Blueprint $table) {
++                $table->id();
++                $table->foreignId('store_id')->constrained()->onDelete('cascade');
++                $table->foreignId('user_id')->constrained()->onDelete('cascade'); // The "Custodian" who opened it
++                $table->decimal('opening_amount', 10, 2);
++                $table->decimal('closing_amount', 10, 2)->nullable();
++                $table->decimal('expected_amount', 10, 2)->nullable();
++                $table->decimal('variance', 10, 2)->nullable();
++                $table->enum('status', ['open', 'closed'])->default('open');
++                $table->timestamp('opened_at');
++                $table->timestamp('closed_at')->nullable();
++                $table->text('notes')->nullable();
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2025_12_26_030234_create_cash_register_adjustments_table.php b/database/migrations/2025_12_26_030234_create_cash_register_adjustments_table.php
+index 77e4215..680a929 100644
+--- a/database/migrations/2025_12_26_030234_create_cash_register_adjustments_table.php
++++ b/database/migrations/2025_12_26_030234_create_cash_register_adjustments_table.php
+@@ -11,17 +11,19 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('cash_register_adjustments', function (Blueprint $table) {
+-            $table->id();
+-            $table->foreignId('cash_register_session_id')->constrained()->onDelete('cascade');
+-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Requester (Manager)
+-            $table->foreignId('approved_by')->nullable()->constrained('users')->onDelete('set null'); // Approver (Admin)
+-            $table->decimal('original_amount', 10, 2);
+-            $table->decimal('new_amount', 10, 2);
+-            $table->text('reason'); // Required
+-            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('cash_register_adjustments')) {
++            Schema::create('cash_register_adjustments', function (Blueprint $table) {
++                $table->id();
++                $table->foreignId('cash_register_session_id')->constrained()->onDelete('cascade');
++                $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Requester (Manager)
++                $table->foreignId('approved_by')->nullable()->constrained('users')->onDelete('set null'); // Approver (Admin)
++                $table->decimal('original_amount', 10, 2);
++                $table->decimal('new_amount', 10, 2);
++                $table->text('reason'); // Required
++                $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+diff --git a/database/migrations/2025_12_26_113618_create_product_pricing_tiers_table.php b/database/migrations/2025_12_26_113618_create_product_pricing_tiers_table.php
+deleted file mode 100644
+index 2f8fa58..0000000
+--- a/database/migrations/2025_12_26_113618_create_product_pricing_tiers_table.php
++++ /dev/null
+@@ -1,27 +0,0 @@
+-<?php
+-
+-use Illuminate\Database\Migrations\Migration;
+-use Illuminate\Database\Schema\Blueprint;
+-use Illuminate\Support\Facades\Schema;
+-
+-return new class extends Migration
+-{
+-    /**
+-     * Run the migrations.
+-     */
+-    public function up(): void
+-    {
+-        Schema::create('product_pricing_tiers', function (Blueprint $table) {
+-            $table->id();
+-            $table->timestamps();
+-        });
+-    }
+-
+-    /**
+-     * Reverse the migrations.
+-     */
+-    public function down(): void
+-    {
+-        Schema::dropIfExists('product_pricing_tiers');
+-    }
+-};
+diff --git a/database/migrations/2025_12_26_114044_create_product_pricing_tiers_table.php b/database/migrations/2025_12_26_114044_create_product_pricing_tiers_table.php
+index 3d37710..8a1f97c 100644
+--- a/database/migrations/2025_12_26_114044_create_product_pricing_tiers_table.php
++++ b/database/migrations/2025_12_26_114044_create_product_pricing_tiers_table.php
+@@ -11,14 +11,16 @@
+      */
+     public function up(): void
+     {
+-        Schema::create('product_pricing_tiers', function (Blueprint $table) {
+-            $table->id();
+-            $table->foreignId('product_id')->constrained()->onDelete('cascade');
+-            $table->integer('quantity'); // Pricing beak (e.g., 3)
+-            $table->decimal('price', 10, 2); // Total price for that quantity (e.g., 100.00)
+-            $table->string('name')->nullable(); // Optional label (e.g., "Wholesale")
+-            $table->timestamps();
+-        });
++        if (!Schema::hasTable('product_pricing_tiers')) {
++            Schema::create('product_pricing_tiers', function (Blueprint $table) {
++                $table->id();
++                $table->foreignId('product_id')->constrained()->onDelete('cascade');
++                $table->integer('quantity'); // Pricing beak (e.g., 3)
++                $table->decimal('price', 10, 2); // Total price for that quantity (e.g., 100.00)
++                $table->string('name')->nullable(); // Optional label (e.g., "Wholesale")
++                $table->timestamps();
++            });
++        }
+     }
+ 
+     /**
+-- 
+2.43.0
+
