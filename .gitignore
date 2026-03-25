@@ -8,3 +8,6 @@ build/
 .venv/
 venv/
 *.so
+*.db
+.env
+instance/
